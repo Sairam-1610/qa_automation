@@ -157,45 +157,34 @@ with right_col:
                     )
         
                     run_id = run_resp.json().get("run_id")
-        
                     if not run_id:
                         st.error("No run_id returned from Databricks")
-                    
+                        st.stop()
         
-                    else:
-                        time.sleep(100)
-                        # 2️⃣ Fetch NOTEBOOK OUTPUT (correct endpoint)
-                        output_resp = requests.get(
-                            f"{DATABRICKS_INSTANCE}/api/2.2/jobs/runs/get-output",
-                            headers=headers,
-                            params={"run_id": run_id},
-                            timeout=60
-                        )
-                        st.write(output_resp.json())
-                        notebook_output = (
-                            output_resp.json()
-                            .get("notebook_output", {})
-                            .get("result")
-                        )
+                    # 2️⃣ Get job run info (to fetch TASK run_id)
+                    run_info_resp = requests.get(
+                        f"{DATABRICKS_INSTANCE}/api/2.2/jobs/runs/get",
+                        headers=headers,
+                        params={"run_id": run_id},
+                        timeout=60
+                    )
         
-                        if not notebook_output:
-                            st.write("No output returned from notebook")
+                    run_info = run_info_resp.json()
         
-                        else:
-                            # ✅ PRINT RAW JSON AS-IS
-                            st.write("Databricks notebook output:")
-                            st.code(notebook_output, language="json")
+                    # ✅ Extract task run_id (first task)
+                    task_run_id = run_info["tasks"][0]["run_id"]
         
-                            # ✅ SHOW DATAFRAME
-                            records = json.loads(notebook_output)
-                            df = pd.DataFrame(records)
+                    # 3️⃣ Get notebook OUTPUT using TASK run_id
+                    output_resp = requests.get(
+                        f"{DATABRICKS_INSTANCE}/api/2.2/jobs/runs/get-output",
+                        headers=headers,
+                        params={"run_id": task_run_id},
+                        timeout=60
+                    )
         
-                            st.dataframe(
-                                df,
-                                use_container_width=True,
-                                height=260,
-                                hide_index=True
-                            )
+                    # ✅ PRINT RAW DATABRICKS OUTPUT (AS IS)
+                    st.write("Databricks notebook output:")
+                    st.write(output_resp.json())
         
                 except Exception as e:
                     st.error(f"Error calling Databricks: {e}")
