@@ -219,12 +219,12 @@ with right_col:
                         status.update(state="error")
                         st.error(f"Unexpected error: {e}")
 
-# --------------------------------------------------
-# TABLE (unchanged)
-# --------------------------------------------------
-st.dataframe(
-    st.session_state.df_summary,
-    use_container_width=True,
-    height=260,
-    hide_index=True
-)
+    # --------------------------------------------------
+    # TABLE (unchanged)
+    # --------------------------------------------------
+    st.dataframe(
+        st.session_state.df_summary,
+        use_container_width=True,
+        height=260,
+        hide_index=True
+    )
