@@ -127,6 +127,15 @@ with right_col:
                 columns=["Category", "Details"]
             )
 
+        
+        st.dataframe(
+            st.session_state.df_summary,
+            use_container_width=True,
+            height=260,   # 👈 enables scrolling
+            hide_index=True
+        )
+
+
         # --------------------------------------------------
         # RUN NOTEBOOK WHEN SUMMARY BUTTON IS CLICKED
         # --------------------------------------------------
@@ -186,8 +195,24 @@ with right_col:
                     timeout=30
                 )
         
-                st.write("Raw Databricks output:")
-                st.write(output_resp.json())
+                # Full Databricks response
+                output_json = output_resp.json()
+                
+                # ✅ Extract ONLY notebook results
+                notebook_result = output_json.get("notebook_output", {}).get("result")
+                
+                if not notebook_result:
+                    st.error("Notebook finished but returned no result")
+                else:
+                    # Convert JSON string → Python list
+                    records = json.loads(notebook_result)
+                
+                    # Create DataFrame
+                    df_summary = pd.DataFrame(records)
+                
+                    # (Optional) store in session state
+                    st.session_state.df_summary = df_summary
+``
         
             except Exception as e:
                 st.error(str(e))
