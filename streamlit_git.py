@@ -181,6 +181,8 @@ with right_col:
                         params={"run_id": task_run_id},
                         timeout=60
                     )
+
+                    time.sleep(75)
         
                     # ✅ PRINT RAW DATABRICKS OUTPUT (AS IS)
                     st.write("Databricks notebook output:")
