@@ -11,6 +11,7 @@ DATABRICKS_INSTANCE = "https://dbc-e124ec40-fa61.cloud.databricks.com"
 TOKEN = "dapi205af0a0551b72580fa4055f98c5be20"
 JOB_ID = "408448156916986"
 
+
 # -------------------------------
 # Page Configuration
 # -------------------------------
@@ -34,6 +35,9 @@ left_col, right_col = st.columns([3.5, 1.5], gap="medium")
 # ============================================================================
 with left_col:
 
+    # ===============================
+    # INGESTION CONFIGURATION
+    # ===============================
     with st.container(border=True):
         st.subheader("Ingestion Configuration")
 
@@ -49,27 +53,54 @@ with left_col:
             key="files_location"
         )
 
-        # ✅ THIS is the ONLY trigger button
+        # ✅ Summary trigger (unique key already present)
         summary_clicked = st.button("Summary", key="summary_btn")
 
+    # ===============================
+    # QUALITY ASSURANCE
+    # ===============================
     with st.container(border=True):
         st.subheader("Quality Assurance")
 
-        st.button("Run All Validations", use_container_width=True)
+        st.button(
+            "Run All Validations",
+            key="run_all_validations_btn",
+            use_container_width=True
+        )
 
         st.markdown("**Structure**")
         col1, col2 = st.columns(2)
+
         with col1:
-            st.button("Test Case Generator", use_container_width=True)
+            st.button(
+                "Test Case Generator",
+                key="structure_test_case_generator",
+                use_container_width=True
+            )
+
         with col2:
-            st.button("Test Case Validation", use_container_width=True)
+            st.button(
+                "Test Case Validation",
+                key="structure_test_case_validation",
+                use_container_width=True
+            )
 
         st.markdown("**SCD**")
         col3, col4 = st.columns(2)
+
         with col3:
-            st.button("Test Case Generator", use_container_width=True)
+            st.button(
+                "Test Case Generator",
+                key="scd_test_case_generator",
+                use_container_width=True
+            )
+
         with col4:
-            st.button("Test Case Validation", use_container_width=True)
+            st.button(
+                "Test Case Validation",
+                key="scd_test_case_validation",
+                use_container_width=True
+            )
 
 # ============================================================================
 # RIGHT PANEL – SUMMARY VIEWER
@@ -90,7 +121,7 @@ with right_col:
 
         st.divider()
 
-        # Initialize summary storage in session state
+        # Initialize summary storage
         if "df_summary" not in st.session_state:
             st.session_state.df_summary = pd.DataFrame(
                 columns=["Category", "Details"]
@@ -101,81 +132,83 @@ with right_col:
         # --------------------------------------------------
         if summary_clicked:
 
-            headers = {
-                "Authorization": f"Bearer {TOKEN}"
-            }
-
-            payload = {
-                "job_id": JOB_ID,
-                "notebook_params": {
-                    "STM_FILE_PATH": stm_file_path
+            if not stm_file_path:
+                st.error("Please enter STM file path before clicking Summary.")
+            else:
+                headers = {
+                    "Authorization": f"Bearer {TOKEN}"
                 }
-            }
 
-            try:
-                # 1️⃣ Trigger Databricks Job
-                run_resp = requests.post(
-                    f"{DATABRICKS_INSTANCE}/api/2.2/jobs/run-now",
-                    json=payload,
-                    headers=headers,
-                    timeout=30
-                )
+                payload = {
+                    "job_id": JOB_ID,
+                    "notebook_params": {
+                        "STM_FILE_PATH": stm_file_path
+                    }
+                }
 
-                if run_resp.status_code != 200:
-                    st.error("Failed to trigger Databricks job")
-                    st.write(run_resp.text)
-                else:
-                    run_id = run_resp.json().get("run_id")
+                try:
+                    # Trigger Databricks Job
+                    run_resp = requests.post(
+                        f"{DATABRICKS_INSTANCE}/api/2.2/jobs/run-now",
+                        json=payload,
+                        headers=headers,
+                        timeout=30
+                    )
 
-                    if not run_id:
-                        st.error("Databricks did not return run_id")
+                    if run_resp.status_code != 200:
+                        st.error("Failed to trigger Databricks job")
+                        st.write(run_resp.text)
                     else:
-                        # 2️⃣ Fetch job result ONCE
-                        status_resp = requests.get(
-                            f"{DATABRICKS_INSTANCE}/api/2.2/jobs/runs/get",
-                            headers=headers,
-                            params={"run_id": run_id},
-                            timeout=30
-                        )
+                        run_id = run_resp.json().get("run_id")
 
-                        if status_resp.status_code != 200:
-                            st.error("Failed to fetch job result")
-                            st.write(status_resp.text)
+                        if not run_id:
+                            st.error("Databricks did not return run_id")
                         else:
-                            status_data = status_resp.json()
-                            state = status_data.get("state", {})
+                            status_resp = requests.get(
+                                f"{DATABRICKS_INSTANCE}/api/2.2/jobs/runs/get",
+                                headers=headers,
+                                params={"run_id": run_id},
+                                timeout=30
+                            )
 
-                            if state.get("result_state") != "SUCCESS":
-                                msg = state.get(
-                                    "state_message",
-                                    "Notebook failed"
-                                )
-                                st.error(msg)
+                            if status_resp.status_code != 200:
+                                st.error("Failed to fetch job result")
+                                st.write(status_resp.text)
                             else:
-                                notebook_output = (
-                                    status_data
-                                    .get("notebook_output", {})
-                                    .get("result")
-                                )
+                                status_data = status_resp.json()
+                                state = status_data.get("state", {})
 
-                                if not notebook_output:
-                                    st.error(
-                                        "Notebook returned no output. "
-                                        "Ensure dbutils.notebook.exit(json) is used."
+                                if state.get("result_state") != "SUCCESS":
+                                    msg = state.get(
+                                        "state_message",
+                                        "Notebook failed"
                                     )
+                                    st.error(msg)
                                 else:
-                                    records = json.loads(notebook_output)
-                                    st.session_state.df_summary = pd.DataFrame(records)
-                                    st.success("Summary loaded")
+                                    notebook_output = (
+                                        status_data
+                                        .get("notebook_output", {})
+                                        .get("result")
+                                    )
 
-            except requests.exceptions.Timeout:
-                st.error("Databricks request timed out")
+                                    if not notebook_output:
+                                        st.error(
+                                            "Notebook returned no output. "
+                                            "Ensure dbutils.notebook.exit(json) is used."
+                                        )
+                                    else:
+                                        records = json.loads(notebook_output)
+                                        st.session_state.df_summary = pd.DataFrame(records)
+                                        st.success("Summary loaded")
 
-            except json.JSONDecodeError:
-                st.error("Invalid JSON returned from notebook")
+                except requests.exceptions.Timeout:
+                    st.error("Databricks request timed out")
 
-            except Exception as e:
-                st.error(f"Unexpected error: {e}")
+                except json.JSONDecodeError:
+                    st.error("Invalid JSON returned from notebook")
+
+                except Exception as e:
+                    st.error(f"Unexpected error: {e}")
 
         # --------------------------------------------------
         # SCROLLABLE SUMMARY TABLE
