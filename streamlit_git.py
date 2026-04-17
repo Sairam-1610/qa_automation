@@ -146,69 +146,92 @@ with right_col:
                     }
                 }
 
-                try:
-                    # Trigger Databricks Job
-                    run_resp = requests.post(
-                        f"{DATABRICKS_INSTANCE}/api/2.2/jobs/run-now",
-                        json=payload,
-                        headers=headers,
-                        timeout=30
-                    )
+                # ✅ Status dialog for job progress
+                with st.status("Running Databricks job...", expanded=True) as status:
 
-                    if run_resp.status_code != 200:
-                        st.error("Failed to trigger Databricks job")
-                        st.write(run_resp.text)
-                    else:
-                        run_id = run_resp.json().get("run_id")
+                    try:
+                        status.write("🔄 Triggering Databricks job...")
 
-                        if not run_id:
-                            st.error("Databricks did not return run_id")
+                        run_resp = requests.post(
+                            f"{DATABRICKS_INSTANCE}/api/2.2/jobs/run-now",
+                            json=payload,
+                            headers=headers,
+                            timeout=30
+                        )
+
+                        if run_resp.status_code != 200:
+                            status.update(state="error")
+                            st.error("Failed to trigger Databricks job")
+                            st.write(run_resp.text)
                         else:
-                            status_resp = requests.get(
-                                f"{DATABRICKS_INSTANCE}/api/2.2/jobs/runs/get",
-                                headers=headers,
-                                params={"run_id": run_id},
-                                timeout=30
-                            )
+                            run_id = run_resp.json().get("run_id")
 
-                            if status_resp.status_code != 200:
-                                st.error("Failed to fetch job result")
-                                st.write(status_resp.text)
+                            if not run_id:
+                                status.update(state="error")
+                                st.error("Databricks did not return run_id")
                             else:
-                                status_data = status_resp.json()
-                                state = status_data.get("state", {})
+                                status.write(f"✅ Job started (run_id: {run_id})")
+                                st.toast("Databricks job started", icon="✅")
 
-                                if state.get("result_state") != "SUCCESS":
-                                    msg = state.get(
-                                        "state_message",
-                                        "Notebook failed"
-                                    )
-                                    st.error(msg)
+                                status.write("🔎 Fetching notebook result...")
+
+                                status_resp = requests.get(
+                                    f"{DATABRICKS_INSTANCE}/api/2.2/jobs/runs/get",
+                                    headers=headers,
+                                    params={"run_id": run_id},
+                                    timeout=30
+                                )
+
+                                if status_resp.status_code != 200:
+                                    status.update(state="error")
+                                    st.error("Failed to fetch job result")
+                                    st.write(status_resp.text)
                                 else:
-                                    notebook_output = (
-                                        status_data
-                                        .get("notebook_output", {})
-                                        .get("result")
-                                    )
+                                    status_data = status_resp.json()
+                                    state = status_data.get("state", {})
 
-                                    if not notebook_output:
-                                        st.error(
-                                            "Notebook returned no output. "
-                                            "Ensure dbutils.notebook.exit(json) is used."
+                                    if state.get("result_state") != "SUCCESS":
+                                        status.update(state="error")
+                                        msg = state.get(
+                                            "state_message",
+                                            "Notebook failed"
                                         )
+                                        st.error(msg)
                                     else:
-                                        records = json.loads(notebook_output)
-                                        st.session_state.df_summary = pd.DataFrame(records)
-                                        st.success("Summary loaded")
+                                        notebook_output = (
+                                            status_data
+                                            .get("notebook_output", {})
+                                            .get("result")
+                                        )
 
-                except requests.exceptions.Timeout:
-                    st.error("Databricks request timed out")
+                                        if not notebook_output:
+                                            status.update(state="error")
+                                            st.error(
+                                                "Notebook returned no output. "
+                                                "Ensure dbutils.notebook.exit(json) is used."
+                                            )
+                                        else:
+                                            records = json.loads(notebook_output)
+                                            st.session_state.df_summary = pd.DataFrame(records)
 
-                except json.JSONDecodeError:
-                    st.error("Invalid JSON returned from notebook")
+                                            status.update(
+                                                label="✅ Summary loaded successfully",
+                                                state="complete",
+                                                expanded=False
+                                            )
+                                            st.toast("Summary loaded", icon="📊")
 
-                except Exception as e:
-                    st.error(f"Unexpected error: {e}")
+                    except requests.exceptions.Timeout:
+                        status.update(state="error")
+                        st.error("Databricks request timed out")
+
+                    except json.JSONDecodeError:
+                        status.update(state="error")
+                        st.error("Invalid JSON returned from notebook")
+
+                    except Exception as e:
+                        status.update(state="error")
+                        st.error(f"Unexpected error: {e}")
 
         # --------------------------------------------------
         # SCROLLABLE SUMMARY TABLE
