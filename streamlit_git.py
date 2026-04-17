@@ -106,20 +106,6 @@ with right_col:
 
         st.markdown("**Target**")
         st.write("Schema Name · Table Name")
-
-        st.markdown("**Curated**")
-        st.write("Schema Name · Table Name")
-
-        st.markdown("**SCD Type**")
-        st.write("Type 1 / Type 2")
-
-        st.markdown("**Load Type**")
-        st.write("Full / Incremental")
-
-        st.divider()
-
-        st.markdown("### 📋 Detailed Metadata")
-
         # ------------------------------------------------------------------
         # DATABRICKS METADATA TABLE PLACEHOLDER
         #
