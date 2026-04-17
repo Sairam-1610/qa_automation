@@ -171,7 +171,7 @@ with right_col:
                             params={"run_id": run_id},
                             timeout=60
                         )
-        
+                        st.write(output_resp.json())
                         notebook_output = (
                             output_resp.json()
                             .get("notebook_output", {})
