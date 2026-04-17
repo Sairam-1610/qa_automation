@@ -200,6 +200,7 @@ with right_col:
                 
                 # ✅ Extract ONLY notebook results
                 notebook_result = output_json.get("notebook_output", {}).get("result")
+                st.write(notebook_result)
                 
                 if not notebook_result:
                     st.error("Notebook finished but returned no result")
