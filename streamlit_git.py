@@ -142,7 +142,7 @@ with right_col:
                 payload = {
                     "job_id": JOB_ID,
                     "notebook_params": {
-                        "STM_FILE_PATH": stm_file_path
+                        "stm_file_path": stm_file_path
                     }
                 }
 
