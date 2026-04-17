@@ -109,7 +109,6 @@ with right_col:
 
     with st.container(border=True):
         st.subheader("Summary Viewer")
-        st.divider()
 
         # Initialize summary storage
         if "df_summary" not in st.session_state:
