@@ -128,12 +128,7 @@ with right_col:
             )
 
         
-        st.dataframe(
-            st.session_state.df_summary,
-            use_container_width=True,
-            height=260,   # 👈 enables scrolling
-            hide_index=True
-        )
+        
 
 
         # --------------------------------------------------
@@ -200,7 +195,7 @@ with right_col:
                 
                 # ✅ Extract ONLY notebook results
                 notebook_result = output_json.get("notebook_output", {}).get("result")
-                st.write(notebook_result)
+                
                 
                 if not notebook_result:
                     st.error("Notebook finished but returned no result")
@@ -213,6 +208,13 @@ with right_col:
                 
                     # (Optional) store in session state
                     st.session_state.df_summary = df_summary
+
+                    st.dataframe(
+                    st.session_state.df_summary,
+                    use_container_width=True,
+                    height=260,   # 👈 enables scrolling
+                    hide_index=True
+                )
         
             except Exception as e:
                 st.error(str(e))
