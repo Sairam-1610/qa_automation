@@ -134,6 +134,7 @@ with right_col:
 
             if not stm_file_path:
                 st.error("Please enter STM file path before clicking Summary.")
+        
             else:
                 headers = {
                     "Authorization": f"Bearer {TOKEN}"
@@ -146,85 +147,53 @@ with right_col:
                     }
                 }
         
-                with st.status("Running Databricks job...", expanded=True) as status:
+                try:
+                    # Trigger Databricks job
+                    run_resp = requests.post(
+                        f"{DATABRICKS_INSTANCE}/api/2.2/jobs/run-now",
+                        json=payload,
+                        headers=headers,
+                        timeout=30
+                    )
         
-                    try:
-                        status.write("🔄 Triggering Databricks job...")
+                    run_id = run_resp.json().get("run_id")
         
-                        run_resp = requests.post(
-                            f"{DATABRICKS_INSTANCE}/api/2.2/jobs/run-now",
-                            json=payload,
+                    if not run_id:
+                        st.error("No run_id returned from Databricks")
+        
+                    else:
+                        # Fetch job result once
+                        status_resp = requests.get(
+                            f"{DATABRICKS_INSTANCE}/api/2.2/jobs/runs/get",
                             headers=headers,
+                            params={"run_id": run_id},
                             timeout=30
                         )
         
-                        if run_resp.status_code != 200:
-                            status.update(state="error")
-                            st.error("Failed to trigger Databricks job")
-                            st.write(run_resp.text)
+                        notebook_output = (
+                            status_resp.json()
+                            .get("notebook_output", {})
+                            .get("result")
+                        )
+        
+                        if not notebook_output:
+                            st.write("No output returned from notebook")
         
                         else:
-                            run_id = run_resp.json().get("run_id")
+                            # ✅ 1️⃣ PRINT RAW JSON AS‑IS
+                            st.write("Databricks notebook output:")
+                            st.code(notebook_output, language="json")
         
-                            if not run_id:
-                                status.update(state="error")
-                                st.error("Databricks did not return run_id")
+                            # ✅ 2️⃣ CONVERT TO DATAFRAME & DISPLAY
+                            records = json.loads(notebook_output)
+                            df = pd.DataFrame(records)
         
-                            else:
-                                status.write(f"✅ Job started (run_id: {run_id})")
-                                status.write("🔎 Fetching notebook result...")
+                            st.dataframe(
+                                df,
+                                use_container_width=True,
+                                height=260,
+                                hide_index=True
+                            )
         
-                                status_resp = requests.get(
-                                    f"{DATABRICKS_INSTANCE}/api/2.2/jobs/runs/get",
-                                    headers=headers,
-                                    params={"run_id": run_id},
-                                    timeout=30
-                                )
-        
-                                if status_resp.status_code != 200:
-                                    status.update(state="error")
-                                    st.error("Failed to fetch job result")
-                                    st.write(status_resp.text)
-        
-                                else:
-                                    status_data = status_resp.json()
-                                    state = status_data.get("state", {})
-        
-                                    if state.get("result_state") != "SUCCESS":
-                                        status.update(state="error")
-                                        st.error(state.get("state_message", "Notebook failed"))
-        
-                                    else:
-                                        notebook_output = (
-                                            status_data
-                                            .get("notebook_output", {})
-                                            .get("result")
-                                        )
-        
-                                        if not notebook_output:
-                                            status.update(state="error")
-                                            st.error("Notebook returned no output")
-        
-                                        else:
-                                            # ✅ SINGLE STATEMENT: PRINT RAW DATABRICKS OUTPUT
-                                            st.write("Databricks notebook output:", notebook_output)
-        
-                                            status.update(
-                                                label="✅ Notebook output received",
-                                                state="complete",
-                                                expanded=False
-                                            )
-        
-                    except Exception as e:
-                        status.update(state="error")
-                        st.error(f"Unexpected error: {e}")
-
-    # --------------------------------------------------
-    # TABLE (unchanged)
-    # --------------------------------------------------
-    st.dataframe(
-        st.session_state.df_summary,
-        use_container_width=True,
-        height=260,
-        hide_index=True
-    )
+                except Exception as e:
+                    st.error(f"Error calling Databricks: {e}")
