@@ -130,63 +130,65 @@ with right_col:
         # --------------------------------------------------
         # RUN NOTEBOOK WHEN SUMMARY BUTTON IS CLICKED
         # --------------------------------------------------
-        if summary_clicked:
 
+        if summary_clicked:
+        
             if not stm_file_path:
                 st.error("Please enter STM file path before clicking Summary.")
+                st.stop()
         
-            else:
-                headers = {
-                    "Authorization": f"Bearer {TOKEN}"
+            headers = {"Authorization": f"Bearer {TOKEN}"}
+        
+            payload = {
+                "job_id": JOB_ID,
+                "notebook_params": {
+                    "stm_file_path": stm_file_path
                 }
+            }
         
-                payload = {
-                    "job_id": JOB_ID,
-                    "notebook_params": {
-                        "stm_file_path": stm_file_path
-                    }
-                }
+            try:
+                # 1️⃣ Trigger job
+                run_resp = requests.post(
+                    f"{DATABRICKS_INSTANCE}/api/2.2/jobs/run-now",
+                    json=payload,
+                    headers=headers,
+                    timeout=30
+                )
         
-                try:
-                    # 1️⃣ Trigger Databricks job
-                    run_resp = requests.post(
-                        f"{DATABRICKS_INSTANCE}/api/2.2/jobs/run-now",
-                        json=payload,
-                        headers=headers,
-                        timeout=30
-                    )
+                run_id = run_resp.json().get("run_id")
+                if not run_id:
+                    st.error("No run_id returned")
+                    st.stop()
         
-                    run_id = run_resp.json().get("run_id")
-                    if not run_id:
-                        st.error("No run_id returned from Databricks")
-                        st.stop()
-        
-                    # 2️⃣ Get job run info (to fetch TASK run_id)
-                    run_info_resp = requests.get(
+                # 2️⃣ Wait until TASK is finished
+                while True:
+                    run_info = requests.get(
                         f"{DATABRICKS_INSTANCE}/api/2.2/jobs/runs/get",
                         headers=headers,
                         params={"run_id": run_id},
-                        timeout=60
-                    )
+                        timeout=30
+                    ).json()
         
-                    run_info = run_info_resp.json()
+                    task = run_info["tasks"][0]
+                    task_run_id = task["run_id"]
+                    task_state = task["state"]["life_cycle_state"]
         
-                    # ✅ Extract task run_id (first task)
-                    task_run_id = run_info["tasks"][0]["run_id"]
+                    if task_state == "TERMINATED":
+                        break
         
-                    # 3️⃣ Get notebook OUTPUT using TASK run_id
-                    output_resp = requests.get(
-                        f"{DATABRICKS_INSTANCE}/api/2.2/jobs/runs/get-output",
-                        headers=headers,
-                        params={"run_id": task_run_id},
-                        timeout=60
-                    )
-
-                    time.sleep(75)
+                    time.sleep(5)
         
-                    # ✅ PRINT RAW DATABRICKS OUTPUT (AS IS)
-                    st.write("Databricks notebook output:")
-                    st.write(output_resp.json())
+                # 3️⃣ Fetch notebook output using TASK run_id
+                output_resp = requests.get(
+                    f"{DATABRICKS_INSTANCE}/api/2.2/jobs/runs/get-output",
+                    headers=headers,
+                    params={"run_id": task_run_id},
+                    timeout=30
+                )
         
-                except Exception as e:
-                    st.error(f"Error calling Databricks: {e}")
+                st.write("Raw Databricks output:")
+                st.write(output_resp.json())
+        
+            except Exception as e:
+                st.error(str(e))
+        
