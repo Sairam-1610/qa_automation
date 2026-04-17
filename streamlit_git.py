@@ -160,8 +160,10 @@ with right_col:
         
                     if not run_id:
                         st.error("No run_id returned from Databricks")
+                    
         
                     else:
+                        time.sleep(100)
                         # 2️⃣ Fetch NOTEBOOK OUTPUT (correct endpoint)
                         output_resp = requests.get(
                             f"{DATABRICKS_INSTANCE}/api/2.2/jobs/runs/get-output",
