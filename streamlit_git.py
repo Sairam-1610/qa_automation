@@ -148,7 +148,7 @@ with right_col:
                 }
         
                 try:
-                    # Trigger Databricks job
+                    # 1️⃣ Trigger Databricks job
                     run_resp = requests.post(
                         f"{DATABRICKS_INSTANCE}/api/2.2/jobs/run-now",
                         json=payload,
@@ -162,16 +162,16 @@ with right_col:
                         st.error("No run_id returned from Databricks")
         
                     else:
-                        # Fetch job result once
-                        status_resp = requests.get(
-                            f"{DATABRICKS_INSTANCE}/api/2.2/jobs/runs/get",
+                        # 2️⃣ Fetch NOTEBOOK OUTPUT (correct endpoint)
+                        output_resp = requests.get(
+                            f"{DATABRICKS_INSTANCE}/api/2.2/jobs/runs/get-output",
                             headers=headers,
                             params={"run_id": run_id},
-                            timeout=30
+                            timeout=60
                         )
         
                         notebook_output = (
-                            status_resp.json()
+                            output_resp.json()
                             .get("notebook_output", {})
                             .get("result")
                         )
@@ -180,11 +180,11 @@ with right_col:
                             st.write("No output returned from notebook")
         
                         else:
-                            # ✅ 1️⃣ PRINT RAW JSON AS‑IS
+                            # ✅ PRINT RAW JSON AS-IS
                             st.write("Databricks notebook output:")
                             st.code(notebook_output, language="json")
         
-                            # ✅ 2️⃣ CONVERT TO DATAFRAME & DISPLAY
+                            # ✅ SHOW DATAFRAME
                             records = json.loads(notebook_output)
                             df = pd.DataFrame(records)
         
