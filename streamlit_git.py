@@ -8,7 +8,7 @@ import json
 # CONFIGURATION (replace with st.secrets in production)
 # -------------------------------------------------------------------
 DATABRICKS_INSTANCE = "https://dbc-e124ec40-fa61.cloud.databricks.com"
-TOKEN = "dapi205af0a0551b72580fa4055f98c5be20"
+TOKEN = "dapi5dacec5611a5238aec10d5f69b150d09"
 JOB_ID = "408448156916986"
 
 
