@@ -1,4 +1,5 @@
 import streamlit as st
+import pandas as pd
 
 # -------------------------------
 # Page Configuration
@@ -9,7 +10,7 @@ st.set_page_config(
 )
 
 # -------------------------------
-# Header (Plain Text Only)
+# Header
 # -------------------------------
 st.title("End‑to‑End AI QA for Ingestion Pipelines")
 
@@ -114,3 +115,49 @@ with right_col:
 
         st.markdown("**Load Type**")
         st.write("Full / Incremental")
+
+        st.divider()
+
+        st.markdown("### 📋 Detailed Metadata")
+
+        # ------------------------------------------------------------------
+        # DATABRICKS METADATA TABLE PLACEHOLDER
+        #
+        # EXPECTED FORMAT FROM DATABRICKS:
+        # ------------------------------------------------------------------
+        # A Spark / SQL result with EXACTLY these two columns:
+        #
+        #   Category : STRING
+        #   Details  : STRING
+        #
+        # Each row represents one metadata attribute, e.g.:
+        #   - Source Name
+        #   - Target Table
+        #   - Load Type
+        #   - Load Strategy
+        #   - Total Column Count
+        #   - Primary Keys
+        #   - PII Present
+        #   - Temporal Columns
+        #
+        # INTEGRATION STEPS (to be added later):
+        # ------------------------------------------------------------------
+        # 1. Query metadata from Azure Databricks (SQL or Spark)
+        # 2. Result must return (Category, Details)
+        # 3. Convert Spark DataFrame → Pandas:
+        #
+        #       df_summary = spark_df.toPandas()
+        #
+        # 4. Replace the empty DataFrame below with df_summary
+        # ------------------------------------------------------------------
+
+        # Empty dataframe placeholder (keeps UI layout intact)
+        df_summary = pd.DataFrame(columns=["Category", "Details"])
+
+        # Scrollable table
+        st.dataframe(
+            df_summary,
+            use_container_width=True,
+            height=260,     # Enables vertical scrolling
+            hide_index=True
+        )
