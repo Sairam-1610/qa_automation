@@ -109,16 +109,6 @@ with right_col:
 
     with st.container(border=True):
         st.subheader("Summary Viewer")
-
-        st.markdown("**Pipeline Name**")
-        st.write("STM Name")
-
-        st.markdown("**Source**")
-        st.write("Schema Name · Table Name")
-
-        st.markdown("**Target**")
-        st.write("Schema Name · Table Name")
-
         st.divider()
 
         # Initialize summary storage
