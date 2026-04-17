@@ -1,5 +1,15 @@
 import streamlit as st
 import pandas as pd
+import requests
+import time
+import json
+
+# -------------------------------------------------------------------
+# CONFIGURATION (replace with st.secrets in production)
+# -------------------------------------------------------------------
+DATABRICKS_INSTANCE = "https://dbc-e124ec40-fa61.cloud.databricks.com"
+TOKEN = "dapi205af0a0551b72580fa4055f98c5be20"
+JOB_ID = <JOB_ID>
 
 # -------------------------------
 # Page Configuration
@@ -24,9 +34,6 @@ left_col, right_col = st.columns([3.5, 1.5], gap="medium")
 # ============================================================================
 with left_col:
 
-    # ===============================
-    # INGESTION CONFIGURATION
-    # ===============================
     with st.container(border=True):
         st.subheader("Ingestion Configuration")
 
@@ -36,59 +43,33 @@ with left_col:
             key="stm_location"
         )
 
-        st.text_input(
+        stm_file_path = st.text_input(
             "Files Location (parquet, csv, etc)",
-            placeholder="Enter file or folder path",
+            placeholder="Enter STM file path",
             key="files_location"
         )
 
-        st.button("Summary", key="summary_btn")
+        # ✅ THIS is the ONLY trigger button
+        summary_clicked = st.button("Summary", key="summary_btn")
 
-    # ===============================
-    # QUALITY ASSURANCE
-    # ===============================
     with st.container(border=True):
         st.subheader("Quality Assurance")
 
-        st.button(
-            "Run All Validations",
-            key="run_all_validations",
-            use_container_width=True
-        )
+        st.button("Run All Validations", use_container_width=True)
 
         st.markdown("**Structure**")
         col1, col2 = st.columns(2)
-
         with col1:
-            st.button(
-                "Test Case Generator",
-                key="structure_generator",
-                use_container_width=True
-            )
-
+            st.button("Test Case Generator", use_container_width=True)
         with col2:
-            st.button(
-                "Test Case Validation",
-                key="structure_validation",
-                use_container_width=True
-            )
+            st.button("Test Case Validation", use_container_width=True)
 
         st.markdown("**SCD**")
         col3, col4 = st.columns(2)
-
         with col3:
-            st.button(
-                "Test Case Generator",
-                key="scd_generator",
-                use_container_width=True
-            )
-
+            st.button("Test Case Generator", use_container_width=True)
         with col4:
-            st.button(
-                "Test Case Validation",
-                key="scd_validation",
-                use_container_width=True
-            )
+            st.button("Test Case Validation", use_container_width=True)
 
 # ============================================================================
 # RIGHT PANEL – SUMMARY VIEWER
@@ -106,44 +87,102 @@ with right_col:
 
         st.markdown("**Target**")
         st.write("Schema Name · Table Name")
-        # ------------------------------------------------------------------
-        # DATABRICKS METADATA TABLE PLACEHOLDER
-        #
-        # EXPECTED FORMAT FROM DATABRICKS:
-        # ------------------------------------------------------------------
-        # A Spark / SQL result with EXACTLY these two columns:
-        #
-        #   Category : STRING
-        #   Details  : STRING
-        #
-        # Each row represents one metadata attribute, e.g.:
-        #   - Source Name
-        #   - Target Table
-        #   - Load Type
-        #   - Load Strategy
-        #   - Total Column Count
-        #   - Primary Keys
-        #   - PII Present
-        #   - Temporal Columns
-        #
-        # INTEGRATION STEPS (to be added later):
-        # ------------------------------------------------------------------
-        # 1. Query metadata from Azure Databricks (SQL or Spark)
-        # 2. Result must return (Category, Details)
-        # 3. Convert Spark DataFrame → Pandas:
-        #
-        #       df_summary = spark_df.toPandas()
-        #
-        # 4. Replace the empty DataFrame below with df_summary
-        # ------------------------------------------------------------------
 
-        # Empty dataframe placeholder (keeps UI layout intact)
-        df_summary = pd.DataFrame(columns=["Category", "Details"])
+        st.divider()
 
-        # Scrollable table
+        # Initialize summary storage in session state
+        if "df_summary" not in st.session_state:
+            st.session_state.df_summary = pd.DataFrame(
+                columns=["Category", "Details"]
+            )
+
+        # --------------------------------------------------
+        # RUN NOTEBOOK WHEN SUMMARY BUTTON IS CLICKED
+        # --------------------------------------------------
+        if summary_clicked:
+
+            headers = {
+                "Authorization": f"Bearer {TOKEN}"
+            }
+
+            payload = {
+                "job_id": JOB_ID,
+                "notebook_params": {
+                    "STM_FILE_PATH": stm_file_path
+                }
+            }
+
+            try:
+                # 1️⃣ Trigger Databricks Job
+                run_resp = requests.post(
+                    f"{DATABRICKS_INSTANCE}/api/2.2/jobs/run-now",
+                    json=payload,
+                    headers=headers,
+                    timeout=30
+                )
+
+                if run_resp.status_code != 200:
+                    st.error("Failed to trigger Databricks job")
+                    st.write(run_resp.text)
+                else:
+                    run_id = run_resp.json().get("run_id")
+
+                    if not run_id:
+                        st.error("Databricks did not return run_id")
+                    else:
+                        # 2️⃣ Fetch job result ONCE
+                        status_resp = requests.get(
+                            f"{DATABRICKS_INSTANCE}/api/2.2/jobs/runs/get",
+                            headers=headers,
+                            params={"run_id": run_id},
+                            timeout=30
+                        )
+
+                        if status_resp.status_code != 200:
+                            st.error("Failed to fetch job result")
+                            st.write(status_resp.text)
+                        else:
+                            status_data = status_resp.json()
+                            state = status_data.get("state", {})
+
+                            if state.get("result_state") != "SUCCESS":
+                                msg = state.get(
+                                    "state_message",
+                                    "Notebook failed"
+                                )
+                                st.error(msg)
+                            else:
+                                notebook_output = (
+                                    status_data
+                                    .get("notebook_output", {})
+                                    .get("result")
+                                )
+
+                                if not notebook_output:
+                                    st.error(
+                                        "Notebook returned no output. "
+                                        "Ensure dbutils.notebook.exit(json) is used."
+                                    )
+                                else:
+                                    records = json.loads(notebook_output)
+                                    st.session_state.df_summary = pd.DataFrame(records)
+                                    st.success("Summary loaded")
+
+            except requests.exceptions.Timeout:
+                st.error("Databricks request timed out")
+
+            except json.JSONDecodeError:
+                st.error("Invalid JSON returned from notebook")
+
+            except Exception as e:
+                st.error(f"Unexpected error: {e}")
+
+        # --------------------------------------------------
+        # SCROLLABLE SUMMARY TABLE
+        # --------------------------------------------------
         st.dataframe(
-            df_summary,
+            st.session_state.df_summary,
             use_container_width=True,
-            height=260,     # Enables vertical scrolling
+            height=260,
             hide_index=True
         )
