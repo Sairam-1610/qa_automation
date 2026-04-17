@@ -212,7 +212,6 @@ with right_col:
                 
                     # (Optional) store in session state
                     st.session_state.df_summary = df_summary
-``
         
             except Exception as e:
                 st.error(str(e))
