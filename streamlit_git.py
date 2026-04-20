@@ -201,7 +201,7 @@ with right_col:
                     st.dataframe(
                     st.session_state.df_summary,
                     use_container_width=True,
-                    height=260,   # 👈 enables scrolling
+                    height=470,   # 👈 enables scrolling
                     hide_index=True
                 )
         
